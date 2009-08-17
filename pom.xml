@@ -24,6 +24,7 @@
     <module>samples-scala</module>
     <module>samples-lift</module>
     <module>samples-java</module>
+    <module>samples-secure</module>
   </modules>
 
   <organization>
