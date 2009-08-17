@@ -16,6 +16,8 @@
 
 /*
  * AKKA AAS (Authentication and Authorization Service)
+ * Rework of lift's (www.liftweb.com) HTTP Authentication module
+ * All cred to the Lift team (www.liftweb.com), especially David Pollak and Tim Perrett
  */
 
 package se.scalablesolutions.akka.kernel.rest
