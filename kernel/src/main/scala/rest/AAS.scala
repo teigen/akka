@@ -156,6 +156,8 @@ trait AuthenticationActor[C <: Credentials] extends Actor with Logging
         }
     }
 
+    override def receive: PartialFunction[Any, Unit] = authenticate
+
     def auth(r : Req) = r.getHeaderValue("Authorization")
     
     def authOption(r : Req) : Option[String] = {
@@ -191,17 +193,21 @@ trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
 
     val nonceMap = mkNonceMap
 
-    Scheduler.schedule(this, InvalidateNonces, 0L, nonceValidityPeriod * 2, TimeUnit.SECONDS)
-
     protected val invalidateNonces: PartialFunction[Any,Unit] = {
         case InvalidateNonces =>
         {
+            log.info("Invalidating nonces!")
             val ts = System.currentTimeMillis
 
             nonceMap.retain((k,v) => (ts - v) < nonceValidityPeriod)
             reply( () )
         }
+
+        case e => log.info("Don't know what to do with: " + e)
     }
+
+    protected override def init(config: AnyRef) =
+        Scheduler.schedule(this, InvalidateNonces, noncePurgeInterval, noncePurgeInterval, TimeUnit.MILLISECONDS )
 
     override def receive: PartialFunction[Any, Unit] = authenticate orElse invalidateNonces
 
@@ -267,5 +273,6 @@ trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
     def mkNonceMap : scala.collection.mutable.Map[String,Long]
 
     //Optional overrides
-    def nonceValidityPeriod = 3*60*1000
+    def nonceValidityPeriod = 60*1000//ms
+    def noncePurgeInterval = 60*1000 //ms
 }
