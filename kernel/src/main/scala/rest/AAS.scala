@@ -196,18 +196,15 @@ trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
     protected val invalidateNonces: PartialFunction[Any,Unit] = {
         case InvalidateNonces =>
         {
-            log.info("Invalidating nonces!")
             val ts = System.currentTimeMillis
 
             nonceMap.retain((k,v) => (ts - v) < nonceValidityPeriod)
-            reply( () )
         }
 
         case e => log.info("Don't know what to do with: " + e)
     }
 
-    protected override def init(config: AnyRef) =
-        Scheduler.schedule(this, InvalidateNonces, noncePurgeInterval, noncePurgeInterval, TimeUnit.MILLISECONDS )
+    Scheduler.schedule(this, InvalidateNonces, noncePurgeInterval, noncePurgeInterval, TimeUnit.MILLISECONDS )
 
     override def receive: PartialFunction[Any, Unit] = authenticate orElse invalidateNonces
 
@@ -274,5 +271,5 @@ trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
 
     //Optional overrides
     def nonceValidityPeriod = 60*1000//ms
-    def noncePurgeInterval = 60*1000 //ms
+    def noncePurgeInterval = 2*60*1000 //ms
 }
