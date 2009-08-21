@@ -16,9 +16,6 @@ import nio.protobuf.RemoteProtocol.RemoteRequest
 import util.Logging
 import serialization.{Serializer, Serializable, SerializationProtocol}
 import nio.{RemoteProtocolBuilder, RemoteClient, RemoteServer, RemoteRequestIdFactory}
-import management.Management
-
-import com.twitter.service.Stats
 
 sealed abstract class LifecycleMessage
 case class Init(config: AnyRef) extends LifecycleMessage
@@ -53,7 +50,6 @@ object Actor {
  * @author <a href="http://jonasboner.com">Jonas Bon&#233;r</a>
  */
 trait Actor extends Logging with TransactionManagement {
-  Stats.getCounter("NrOfActors").incr
   ActorRegistry.register(this)
   
   @volatile private[this] var isRunning: Boolean = false
@@ -362,8 +358,8 @@ trait Actor extends Logging with TransactionManagement {
    * <p/>
    * To be invoked from within the actor itself.
    */
-  protected[this] def spawn(actorClass: Class[_]): Actor = {
-    val actor = actorClass.newInstance.asInstanceOf[Actor]
+  protected[this] def spawn[T <: Actor](actorClass: Class[T]): T = {
+    val actor = actorClass.newInstance.asInstanceOf[T]
     actor.dispatcher = dispatcher
     actor.mailbox = mailbox
     actor.start
@@ -375,8 +371,8 @@ trait Actor extends Logging with TransactionManagement {
    * <p/>
    * To be invoked from within the actor itself.
    */
-  protected[this] def spawnRemote(actorClass: Class[_]): Actor = {
-    val actor = actorClass.newInstance.asInstanceOf[Actor]
+  protected[this] def spawnRemote[T <: Actor](actorClass: Class[T]): T = {
+    val actor = actorClass.newInstance.asInstanceOf[T]
     actor.makeRemote(RemoteServer.HOSTNAME, RemoteServer.PORT)
     actor.dispatcher = dispatcher
     actor.mailbox = mailbox
@@ -389,8 +385,8 @@ trait Actor extends Logging with TransactionManagement {
    * <p/>
    * To be invoked from within the actor itself.
    */
-  protected[this] def spawnLink(actorClass: Class[_]): Actor = {
-    val actor = spawn(actorClass)
+  protected[this] def spawnLink[T <: Actor](actorClass: Class[T]): T = {
+    val actor = spawn[T](actorClass)
     link(actor)
     actor
   }
@@ -400,8 +396,8 @@ trait Actor extends Logging with TransactionManagement {
    * <p/>
    * To be invoked from within the actor itself.
    */
-  protected[this] def spawnLinkRemote(actorClass: Class[_]): Actor = {
-    val actor = spawn(actorClass)
+  protected[this] def spawnLinkRemote[T <: Actor](actorClass: Class[T]): T = {
+    val actor = spawn[T](actorClass)
     actor.makeRemote(RemoteServer.HOSTNAME, RemoteServer.PORT)
     link(actor)
     actor
@@ -537,8 +533,6 @@ trait Actor extends Logging with TransactionManagement {
   }
 
   private[this] def handleTrapExit(dead: Actor, reason: Throwable): Unit = {
-    if (Management.RECORD_STATS) Stats.getCounter("NrOfFailures_" + dead.name).incr
-
     if (trapExit) {
       if (faultHandler.isDefined) {
         faultHandler.get match {
@@ -556,7 +550,6 @@ trait Actor extends Logging with TransactionManagement {
     linkedActors.toArray.toList.asInstanceOf[List[Actor]].foreach(_.restart(reason))
 
   private[Actor] def restart(reason: AnyRef) = synchronized {
-    if (Management.RECORD_STATS) Stats.getCounter("NrOfRestarts_" + name).incr
     lifeCycleConfig match {
       case None => throw new IllegalStateException("Server [" + id + "] does not have a life-cycle defined.")
 

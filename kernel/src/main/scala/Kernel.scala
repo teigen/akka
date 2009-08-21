@@ -18,7 +18,6 @@ import kernel.rest.AkkaCometServlet
 import kernel.nio.RemoteServer
 import kernel.state.CassandraStorage
 import kernel.util.Logging
-import kernel.management.Management
 
 /**
  * @author <a href="http://jonasboner.com">Jonas Bon&#233;r</a>
@@ -38,7 +37,6 @@ object Kernel extends Logging {
 
   val BOOT_CLASSES = config.getList("akka.boot")
   val RUN_REMOTE_SERVICE = config.getBool("akka.remote.service", true)
-  val RUN_MANAGEMENT_SERVICE = config.getBool("akka.management.service", true)
   val STORAGE_SYSTEM = config.getString("akka.storage.system", "cassandra")
   val RUN_REST_SERVICE = config.getBool("akka.rest.service", true)
   val REST_HOSTNAME = kernel.Kernel.config.getString("akka.rest.hostname", "localhost")
@@ -62,18 +60,6 @@ object Kernel extends Logging {
       runApplicationBootClasses
 
       if (RUN_REMOTE_SERVICE) startRemoteService
-      if (RUN_MANAGEMENT_SERVICE) startManagementService
-
-      STORAGE_SYSTEM match {
-        case "cassandra" => startCassandra
-        case "terracotta" => throw new UnsupportedOperationException("terracotta storage backend is not yet supported")
-        case "mongodb" => throw new UnsupportedOperationException("mongodb storage backend is not yet supported")
-        case "redis" => throw new UnsupportedOperationException("redis storage backend is not yet supported")
-        case "voldemort" => throw new UnsupportedOperationException("voldemort storage backend is not yet supported")
-        case "tokyo-cabinet" => throw new UnsupportedOperationException("tokyo-cabinet storage backend is not yet supported")
-        case _ => throw new UnsupportedOperationException("Unknown storage system [" + STORAGE_SYSTEM + "]")
-      }
-
       if (RUN_REST_SERVICE) startREST
 
       Thread.currentThread.setContextClassLoader(getClass.getClassLoader)
@@ -84,7 +70,7 @@ object Kernel extends Logging {
 
   def uptime = (System.currentTimeMillis - startTime) / 1000
 
-  def setupConfig: Config = {
+  private def setupConfig: Config = {
     if (HOME.isDefined) {
       try {
         val configFile = HOME.get + "/config/akka.conf"
@@ -101,15 +87,10 @@ object Kernel extends Logging {
         case e: ParseException => throw new IllegalStateException("'$AKKA_HOME/config/akka.conf' could not be found and no 'akka.conf' can be found on the classpath - aborting. . Either add it in the '$AKKA_HOME/config' directory or add it to the classpath.")
       }
     }
-    val config = Configgy.config
-    config.registerWithJmx("com.scalablesolutions.akka")
-    // FIXME fix Configgy JMX subscription to allow management
-    // config.subscribe { c => configure(c.getOrElse(new Config)) }
-    config
+    Configgy.config
   }
 
   private[akka] def runApplicationBootClasses = {
-    new management.RestfulJMXBoot // add the REST/JMX service
     val loader =
     if (HOME.isDefined) {
       val CONFIG = HOME.get + "/config"
@@ -138,19 +119,7 @@ object Kernel extends Logging {
     remoteServerThread.start
   }
 
-  private[akka] def startManagementService = {
-    Management("se.scalablesolutions.akka.management")
-    log.info("Management service started successfully.")
-  }
-
-  private[akka] def startCassandra = if (config.getBool("akka.storage.cassandra.service", true)) {
-    System.setProperty("cassandra", "")
-    if (HOME.isDefined) System.setProperty("storage-config", HOME.get + "/config/")
-    else if (System.getProperty("storage-config", "NIL") == "NIL") throw new IllegalStateException("AKKA_HOME and -Dstorage-config=... is not set. Can't start up Cassandra. Either set AKKA_HOME or set the -Dstorage-config=... variable to the directory with the Cassandra storage-conf.xml file.")
-    CassandraStorage.start
-  }
-
-  private[akka] def startREST = {
+  def startREST = {
     val uri = UriBuilder.fromUri(REST_URL).port(REST_PORT).build()
 
     val scheme = uri.getScheme
