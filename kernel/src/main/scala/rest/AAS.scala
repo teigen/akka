@@ -43,8 +43,17 @@ object Enc extends SecurityHelpers with StringHelpers with IoHelpers
 
 case object OK
 
+/**
+ * Authenticate represents a message to authenticate a request
+ */
 case class Authenticate(val req : ContainerRequest, val rolesAllowed : List[String])
+
+/**
+ * User info represents a sign-on with associated credentials/roles
+ */
 case class UserInfo(val username : String,val password : String,val roles : List[String])
+
+
 
 trait Credentials
 
@@ -61,7 +70,9 @@ case class DigestCredentials(method: String,
                              response: String,
                              opaque: String) extends Credentials
 
-//Jersey Filter for invocation intercept and authorization/authentication
+/**
+ * Jersey Filter for invocation intercept and authorization/authentication
+ */
 class AkkaSecurityFilterFactory extends ResourceFilterFactory with Logging {
 
     class Filter(actor : Actor,rolesAllowed : Option[List[String]]) extends ResourceFilter with ContainerRequestFilter with Logging {
@@ -69,6 +80,10 @@ class AkkaSecurityFilterFactory extends ResourceFilterFactory with Logging {
         override def getRequestFilter : ContainerRequestFilter = this
         override def getResponseFilter : ContainerResponseFilter = null
 
+        /**
+         * Here's where the magic happens. The request is authenticated by
+         * sending a request for authentication to the configured authenticator actor
+         */
         override def filter(request : ContainerRequest) : ContainerRequest =
             rolesAllowed match {
                 case Some(roles) => {
@@ -91,23 +106,35 @@ class AkkaSecurityFilterFactory extends ResourceFilterFactory with Logging {
 
     lazy val authenticatorFQN = Kernel.config.getString("akka.rest.authenticator").getOrElse(throw new IllegalStateException("akka.rest.authenticator"))
 
+    /**
+     * Currently we always take the first, since there usually should be at most one authentication actor, but a round-robin
+     * strategy could be implemented in the future
+     */
     def authenticator : Actor = ActorRegistry.actorsFor(authenticatorFQN).head
 
     def mkFilter(roles : Option[List[String]]) : java.util.List[ResourceFilter] = java.util.Collections.singletonList(new Filter(authenticator,roles))
 
+    /**
+     * The create method is invoked for each resource, and we look for javax.annotation.security annotations
+     * and create the appropriate Filter configurations for each.
+     */
     override def create(am : AbstractMethod) : java.util.List[ResourceFilter] = {
 
+        //DenyAll takes precedence
         if (am.isAnnotationPresent(classOf[DenyAll]))
             return mkFilter(None)
 
+        //Method-level RolesAllowed takes precedence
         val ra = am.getAnnotation(classOf[RolesAllowed])
 
         if (ra ne null)
             return mkFilter(Some(ra.value.toList))
 
+        //PermitAll takes precedence over resource-level RolesAllowed annotation
         if (am.isAnnotationPresent(classOf[PermitAll]))
             return null;
 
+        //Last but not least, the resource-level RolesAllowed
         val cra = am.getResource.getAnnotation(classOf[RolesAllowed])
         if (cra ne null)
             return mkFilter(Some(ra.value.toList))
@@ -116,17 +143,30 @@ class AkkaSecurityFilterFactory extends ResourceFilterFactory with Logging {
     }
 }
 
+/**
+ * AuthenticationActor is the super-trait for actors doing Http authentication
+ * It defines the common ground and the flow of execution
+ */
 trait AuthenticationActor[C <: Credentials] extends Actor with Logging
 {
     type Req = ContainerRequest
 
+    //What realm does the authentication use?
     def realm : String
+
+    //Creates a response to signal unauthorized
     def unauthorized : Response
+
+    //Used to extract information from the request, returns None if no credentials found
     def extractCredentials(r : Req) : Option[C]
+
+    //returns None is unverified
     def verify(c : Option[C]) : Option[UserInfo]
 
+    //Contruct a new SecurityContext from the supplied parameters
     def mkSecurityContext(r : Req, user : UserInfo) : SecurityContext
 
+    //This is the default security context factory
     def mkDefaultSecurityContext(r : Req,u : UserInfo, scheme : String) : SecurityContext = {
         val n = u.username
         val p = new Principal { def getName = n }
@@ -139,6 +179,13 @@ trait AuthenticationActor[C <: Credentials] extends Actor with Logging
         }
     }
 
+    /**
+     * Responsible for the execution flow of authentication
+     *
+     * Credentials are extracted and verified from the request,
+     * and a se3curity context is created for the ContainerRequest
+     * this should ensure good integration with current Jersey security
+     */
     protected val authenticate: PartialFunction[Any,Unit] = {
         case Authenticate(req,roles) => {
                     verify(extractCredentials(req)) match {
@@ -158,15 +205,21 @@ trait AuthenticationActor[C <: Credentials] extends Actor with Logging
 
     override def receive: PartialFunction[Any, Unit] = authenticate
 
+    //returns the string value of the "Authorization"-header of the request
     def auth(r : Req) = r.getHeaderValue("Authorization")
-    
+
+    //Turns the aforementioned header value into an option
     def authOption(r : Req) : Option[String] = {
         val a = auth(r)
         if(a != null && a.length > 0) Some(a) else None
     }
 }
 
-
+/**
+ * This trait implements the logic for Http Basic authentication
+ * mix this trait into a class to create an authenticator
+ * Don't forget to set the authenticator FQN in the rest-part of the akka config'
+ */
 trait BasicAuthenticationActor extends AuthenticationActor[BasicCredentials]
 {
     override def unauthorized =
@@ -185,14 +238,21 @@ trait BasicAuthenticationActor extends AuthenticationActor[BasicCredentials]
         mkDefaultSecurityContext(r,u,SecurityContext.BASIC_AUTH)
 }
 
+/**
+ * This trait implements the logic for Http Digest authentication
+ * mix this trait into a class to create an authenticator
+ * Don't forget to set the authenticator FQN in the rest-part of the akka config'
+ */
 trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
 {
     import Enc._
 
     private object InvalidateNonces
 
+    //Holds the generated nonces for the specified validity period
     val nonceMap = mkNonceMap
 
+    //Discards old nonces
     protected val invalidateNonces: PartialFunction[Any,Unit] = {
         case InvalidateNonces =>
         {
@@ -204,16 +264,16 @@ trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
         case e => log.info("Don't know what to do with: " + e)
     }
 
+    //Schedule the invalidation of nonces
     Scheduler.schedule(this, InvalidateNonces, noncePurgeInterval, noncePurgeInterval, TimeUnit.MILLISECONDS )
 
+    //authenticate or invalidate nonces
     override def receive: PartialFunction[Any, Unit] = authenticate orElse invalidateNonces
 
     override def unauthorized : Response =
     {
         val nonce = randomString(64);
-
         nonceMap.put(nonce,System.currentTimeMillis)
-
         unauthorized(nonce,"auth",randomString(64))
     }
 
@@ -226,6 +286,7 @@ trait DigestAuthenticationActor extends AuthenticationActor[DigestCredentials]
                                             "opaque=\"" + opaque + "\"").build
     }
 
+    //Tests wether the specified credentials are valid
     def validate(auth: DigestCredentials,user : UserInfo) : Boolean = {
             def h(s : String) = hexEncode(md5(s.getBytes("UTF-8")))
 
