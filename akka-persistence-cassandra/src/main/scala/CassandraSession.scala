@@ -17,7 +17,6 @@ import org.apache.cassandra.db.ColumnFamily
 import org.apache.cassandra.service._
 
 import org.apache.thrift.transport._
-import org.apache.thrift.protocol._
 
 /**
  * @author <a href="http://jonasboner.com">Jonas Bon&#233;r</a>
@@ -148,14 +147,4 @@ class CassandraSessionPool[T <: TTransport](
   }
 
   def close = transportPool.close
-}
-
-sealed abstract class Protocol(val factory: TProtocolFactory) {
-  def apply(transport: TTransport) = factory.getProtocol(transport)
-}
-
-object Protocol {
-  object Binary extends Protocol(new TBinaryProtocol.Factory)
-  object SimpleJSON extends Protocol(new TSimpleJSONProtocol.Factory)
-  object JSON extends Protocol(new TJSONProtocol.Factory)
 }

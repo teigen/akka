@@ -8,6 +8,7 @@ import org.apache.commons.pool._
 import org.apache.commons.pool.impl._
 
 import org.apache.thrift.transport._
+import org.apache.thrift.protocol._
 
 trait Pool[T] extends java.io.Closeable {
   def borrowObject: T
@@ -92,4 +93,14 @@ case class SocketProvider(val host: String, val port: Int) extends TransportFact
     t.open
     t
   }
+}
+
+sealed abstract class Protocol(val factory: TProtocolFactory) {
+  def apply(transport: TTransport) = factory.getProtocol(transport)
+}
+
+object Protocol {
+  object Binary extends Protocol(new TBinaryProtocol.Factory)
+  object SimpleJSON extends Protocol(new TSimpleJSONProtocol.Factory)
+  object JSON extends Protocol(new TJSONProtocol.Factory)
 }
