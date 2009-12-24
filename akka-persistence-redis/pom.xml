@@ -43,4 +43,22 @@
     </dependency>
   </dependencies>
 
+  <profiles>
+      <profile>
+          <id>redis</id>
+          <build>
+              <plugins>
+                  <plugin>
+                      <artifactId>maven-surefire-plugin</artifactId>
+                      <configuration>
+                          <includes>
+                              <include>**/Redis*Spec.java</include>
+                          </includes>
+                      </configuration>
+                  </plugin>
+              </plugins>
+          </build>
+      </profile>
+  </profiles>
+
 </project>

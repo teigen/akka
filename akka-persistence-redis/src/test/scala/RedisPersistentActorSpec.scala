@@ -94,7 +94,7 @@ class AccountActor extends Actor {
   }
 }
 
-class RedisPersistentActorTest extends TestCase {
+class RedisPersistentActorSpec extends TestCase {
   @Test
   def testSuccessfulDebit = {
     val bactor = new AccountActor
