@@ -91,15 +91,15 @@ public class ActiveObjectGuiceConfiguratorTest extends TestCase {
   }
 
 
-  public void testForcedTimeout() {
-    messageLog = "";
-    Foo foo = conf.getInstance(Foo.class);
-    try {
-      foo.longRunning();
-      fail("exception should have been thrown");
-    } catch (se.scalablesolutions.akka.dispatch.FutureTimeoutException e) {
-    }
-  }
+  // public void testForcedTimeout() {
+  //   messageLog = "";
+  //   Foo foo = conf.getInstance(Foo.class);
+  //   try {
+  //     foo.longRunning();
+  //     fail("exception should have been thrown");
+  //   } catch (se.scalablesolutions.akka.dispatch.FutureTimeoutException e) {
+  //   }
+  // }
 
   public void testForcedException() {
     messageLog = "";

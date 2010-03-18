@@ -152,6 +152,10 @@ class AkkaParent(info: ProjectInfo) extends DefaultProject(info) {
       </license>
     </licenses>
 
+	// Java testing
+    val junitInterface = "com.novocode" % "junit-interface" % "0.3" % "test"
+	override def testFrameworks = super.testFrameworks ++ List(new TestFramework("com.novocode.junit.JUnitFramework"))
+
   // ------------------------------------------------------------
   // subprojects
   class AkkaCoreProject(info: ProjectInfo) extends DefaultProject(info) {
@@ -301,6 +305,7 @@ class AkkaParent(info: ProjectInfo) extends DefaultProject(info) {
     // testing
     val junit = "junit" % "junit" % "4.5" % "test"
     val jmock = "org.jmock" % "jmock" % "2.4.0" % "test"
+    val junitInterface = "com.novocode" % "junit-interface" % "0.3" % "test"
   }
 
   class AkkaSampleChatProject(info: ProjectInfo) extends DefaultProject(info) {
@@ -327,8 +332,8 @@ class AkkaParent(info: ProjectInfo) extends DefaultProject(info) {
   }
 
   class AkkaSampleCamelProject(info: ProjectInfo) extends DefaultProject(info) {
-    val jetty = "org.mortbay.jetty" % "jetty" % "6.1.11" % "compile"
-    val jetty_client = "org.mortbay.jetty" % "jetty-client" % "6.1.11" % "compile"
+    val jetty = "org.mortbay.jetty" % "jetty" % "6.1.22" % "compile"
+    val jetty_client = "org.mortbay.jetty" % "jetty-client" % "6.1.22" % "compile"
     val camel_http = "org.apache.camel" % "camel-http" % "2.2.0" % "compile"
     val camel_jetty = "org.apache.camel" % "camel-jetty" % "2.2.0" % "compile" intransitive()
     val camel_jms = "org.apache.camel" % "camel-jms" % "2.2.0" % "compile"

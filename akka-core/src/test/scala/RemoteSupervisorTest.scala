@@ -11,7 +11,7 @@ import se.scalablesolutions.akka.OneWay
 import se.scalablesolutions.akka.dispatch.Dispatchers
 
 import org.scalatest.junit.JUnitSuite
-import org.junit.Test
+import org.junit.{Test,Ignore}
 
 object Log {
   var messageLog: String = ""
@@ -110,7 +110,7 @@ class RemoteSupervisorTest extends JUnitSuite {
     }
   }
 
-  @Test def shouldCallKillCallSingleActorOneForOne = {
+  @Ignore @Test def shouldCallKillCallSingleActorOneForOne = {
     Log.messageLog = ""
     val sup = getSingleActorOneForOneSupervisor
     sup.start
@@ -152,7 +152,7 @@ class RemoteSupervisorTest extends JUnitSuite {
     }
   }
 
-  @Test def shouldCallKillCallSingleActorAllForOne = {
+  @Ignore @Test def shouldCallKillCallSingleActorAllForOne = {
     Log.messageLog = ""
     val sup = getSingleActorAllForOneSupervisor
     sup.start
